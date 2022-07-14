@@ -1,0 +1,148 @@
+version: '2.1'
+
+services:
+  config-server:
+    image: springcommunity/spring-petclinic-config-server
+    container_name: config-server
+    volumes:
+    - ${PWD}/spring-petclinic-microservices-config:/git-repo
+    environment:
+      - GIT_REPO=/git-repo
+      - SPRING_PROFILES_ACTIVE=native
+    mem_limit: 512M
+
+  discovery-server:
+    image: springcommunity/spring-petclinic-discovery-server
+    container_name: discovery-server
+    mem_limit: 512M
+    depends_on:
+      - config-server
+    entrypoint: ["./dockerize","-wait=tcp://config-server:8888","-timeout=60s","--","java", "org.springframework.boot.loader.JarLauncher"]
+
+  customers-service:
+    image: springcommunity/spring-petclinic-customers-service
+    container_name: customers-service
+    volumes:
+     - ${PWD}/easeagent:/easeagent-volume
+    depends_on:
+     - config-server
+     - discovery-server
+    entrypoint: 
+    - "./dockerize"
+    - "-wait=tcp://discovery-server:8761"
+    - "-timeout=60s"
+    - "--"
+    - "java"
+    - "${EASEAGENT_ARG_JAR:--D}"
+    - "${EASEAGENT_ARG_CFG:--D}"
+    - "${EASEAGENT_ARG_LOG4J:--D}"
+    - "-Deaseagent.name=customers-service"
+    - "-Deaseagent.server.port=9900"
+    - "-Dspring.sleuth_enabled=false"
+    - "-Dspring.sleuth.web.enabled=false"
+    - "org.springframework.boot.loader.JarLauncher"
+
+  visits-service:
+    image: springcommunity/spring-petclinic-visits-service
+    container_name: visits-service
+    volumes:
+     - ${PWD}/easeagent:/easeagent-volume
+    depends_on:
+     - config-server
+     - discovery-server
+    entrypoint: 
+    - "./dockerize"
+    - "-wait=tcp://discovery-server:8761"
+    - "-timeout=60s"
+    - "--"
+    - "java"
+    - "${EASEAGENT_ARG_JAR:--D}"
+    - "${EASEAGENT_ARG_CFG:--D}"
+    - "${EASEAGENT_ARG_LOG4J:--D}"
+    - "-Deaseagent.name=visits-service"
+    - "-Deaseagent.server.port=9900"
+    - "-Dspring.sleuth_enabled=false"
+    - "-Dspring.sleuth.web.enabled=false"
+    - "org.springframework.boot.loader.JarLauncher"
+
+  vets-service:
+    image: springcommunity/spring-petclinic-vets-service
+    container_name: vets-service
+    volumes:
+     - ${PWD}/easeagent:/easeagent-volume
+    depends_on:
+     - config-server
+     - discovery-server
+    entrypoint: 
+    - "./dockerize"
+    - "-wait=tcp://discovery-server:8761"
+    - "-timeout=60s"
+    - "--"
+    - "java"
+    - "${EASEAGENT_ARG_JAR:--D}"
+    - "${EASEAGENT_ARG_CFG:--D}"
+    - "${EASEAGENT_ARG_LOG4J:--D}"
+    - "-Deaseagent.name=vets-service"
+    - "-Deaseagent.server.port=9900"
+    - "-Dspring.sleuth_enabled=false"
+    - "-Dspring.sleuth.web.enabled=false"
+    - "org.springframework.boot.loader.JarLauncher"
+
+  api-gateway:
+    image: springcommunity/spring-petclinic-api-gateway
+    container_name: api-gateway
+    volumes:
+     - ${PWD}/easeagent:/easeagent-volume
+    depends_on:
+     - config-server
+     - discovery-server
+    entrypoint: 
+    - "./dockerize"
+    - "-wait=tcp://discovery-server:8761"
+    - "-timeout=60s"
+    - "--"
+    - "java"
+    - "${EASEAGENT_ARG_JAR:--D}"
+    - "${EASEAGENT_ARG_CFG:--D}"
+    - "${EASEAGENT_ARG_LOG4J:--D}"
+    - "-Deaseagent.name=api-service"
+    - "-Deaseagent.server.port=9900"
+    - "-Dspring.sleuth_enabled=false"
+    - "-Dspring.sleuth.web.enabled=false"
+    - "org.springframework.boot.loader.JarLauncher"
+    ports:
+      - "8080:8080"
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    command: [ "-search.enabled=true", "-config.file=/etc/tempo.yaml" ]
+    depends_on: ["api-gateway", "customers-service", "vets-service", "visits-service"]
+    volumes:
+      - ${PWD}/tempo/tempo-local.yaml:/etc/tempo.yaml
+      - ${PWD}/tempo/overrides.yaml:/etc/overrides.yaml
+      - ${PWD}/tempo/tempo-data:/tmp/tempo
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    command: [ "--config.file=/etc/prometheus.yaml" ]
+    depends_on: ["api-gateway", "customers-service", "vets-service", "visits-service"]
+    volumes:
+      - ${PWD}/prometheus/prometheus.yaml:/etc/prometheus.yaml
+
+  grafana:
+    image: grafana/grafana:main   # track main as search is under active development
+    container_name: grafana
+    depends_on: ["api-gateway", "customers-service", "vets-service", "visits-service"]
+    volumes:
+      - ${PWD}/grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ${PWD}/grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    ports:
+      - "3000:3000"
+ 
+
