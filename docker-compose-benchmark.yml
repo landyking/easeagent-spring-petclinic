@@ -144,13 +144,13 @@ services:
       - GF_AUTH_DISABLE_LOGIN_FORM=true
     ports:
       - "3000:3000"
-  loads:
-    image: nicolaka/netshoot
-    container_name: loads
-    mem_limit: 128M
-    depends_on: ["api-gateway", "customers-service", "vets-service", "visits-service"]
-    entrypoint: 
-    - "/bin/bash"
-    - "-c"
-    - "while true; do ping localhost; sleep 60;done"
+  # loads:
+  #   image: nicolaka/netshoot
+  #   container_name: loads
+  #   mem_limit: 128M
+  #   depends_on: ["api-gateway", "customers-service", "vets-service", "visits-service"]
+  #   entrypoint: 
+  #   - "/bin/bash"
+  #   - "-c"
+  #   - "while true; do ping localhost; sleep 60;done"
 
